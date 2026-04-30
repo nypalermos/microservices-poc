@@ -13,6 +13,7 @@ coverage/
 *.log
 *.exe
 .coverage
+services/producer-go/coverage
 bin/
 obj/
 tmp/
