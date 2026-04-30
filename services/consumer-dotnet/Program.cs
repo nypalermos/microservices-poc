@@ -18,6 +18,32 @@ static class Env
 
     public static string Get(string key, string fallback) => Config[key] ?? fallback;
     public static int GetInt(string key, int fallback) => int.TryParse(Config[key], out var parsed) ? parsed : fallback;
+    public static bool GetBool(string key, bool fallback) => bool.TryParse(Config[key], out var parsed) ? parsed : fallback;
+
+    public static string BuildRabbitMqUrl()
+    {
+        var direct = Get("RABBITMQ_URL", Get("Messaging:RabbitMqUrl", ""));
+        if (!string.IsNullOrWhiteSpace(direct))
+        {
+            return direct;
+        }
+
+        var scheme = Get("RABBITMQ_SCHEME", Get("Messaging:RabbitMqScheme", "amqp"));
+        if (GetBool("RABBITMQ_TLS_ENABLED", GetBool("Messaging:RabbitMqTlsEnabled", false)))
+        {
+            scheme = "amqps";
+        }
+        var host = Get("RABBITMQ_HOST", Get("Messaging:RabbitMqHost", "rabbitmq"));
+        var port = Get("RABBITMQ_PORT", Get("Messaging:RabbitMqPort", "5672"));
+        var username = Uri.EscapeDataString(Get("RABBITMQ_USERNAME", Get("Messaging:RabbitMqUsername", "guest")));
+        var password = Uri.EscapeDataString(Get("RABBITMQ_PASSWORD", Get("Messaging:RabbitMqPassword", "guest")));
+        var vhost = Get("RABBITMQ_VHOST", Get("Messaging:RabbitMqVHost", "/"));
+        if (!vhost.StartsWith("/"))
+        {
+            vhost = "/" + vhost;
+        }
+        return $"{scheme}://{username}:{password}@{host}:{port}{vhost}";
+    }
 }
 
 [ExcludeFromCodeCoverage]
@@ -45,7 +71,7 @@ class Program
 
     private static void RunConsumer()
     {
-        var rabbitUrl = new Uri(Env.Get("RABBITMQ_URL", Env.Get("Messaging:RabbitMqUrl", "amqp://guest:guest@rabbitmq:5672/")));
+        var rabbitUrl = new Uri(Env.BuildRabbitMqUrl());
         var exchange = Env.Get("EXCHANGE_NAME", Env.Get("Messaging:ExchangeName", "poc.events"));
         var dlx = Env.Get("DLX_NAME", Env.Get("Messaging:DlxName", "poc.dlx"));
         var queue = Env.Get("QUEUE_NAME", Env.Get("Messaging:QueueName", "poc.queue"));

@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 import pika
 from prometheus_client import Counter, Gauge, start_http_server
-from consumer_logic import Deduper, decode_payload, validate_payload
+from consumer_logic import Deduper, decode_payload, validate_payload, build_rabbitmq_url
 
 
 CONSUMED_TOTAL = Counter("consumer_processed_total", "Total successfully processed messages")
@@ -19,7 +19,7 @@ READY = Gauge("consumer_ready", "Consumer readiness")
 
 class Consumer:
     def __init__(self) -> None:
-        self.rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+        self.rabbitmq_url = build_rabbitmq_url()
         self.exchange = os.getenv("EXCHANGE_NAME", "poc.events")
         self.dlx = os.getenv("DLX_NAME", "poc.dlx")
         self.queue = os.getenv("QUEUE_NAME", "poc.queue")

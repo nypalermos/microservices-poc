@@ -35,4 +35,13 @@ public class ConsumerLogicTests
         var payload = new EventEnvelope("1.0", "hello", "demo.message", "2026-04-30T00:00:00Z", "trace-id");
         Assert.True(ConsumerLogic.IsPayloadValid(payload));
     }
+
+    [Fact]
+    public void BuildRabbitMqUrl_PrefersDirectUrlWhenSet()
+    {
+        Environment.SetEnvironmentVariable("RABBITMQ_URL", "amqps://from-secret-manager");
+        var result = Env.BuildRabbitMqUrl();
+        Assert.Equal("amqps://from-secret-manager", result);
+        Environment.SetEnvironmentVariable("RABBITMQ_URL", null);
+    }
 }

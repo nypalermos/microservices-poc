@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"sync/atomic"
@@ -68,8 +69,44 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 
+func envBool(key string, fallback bool) bool {
+	v := getenv(key, "")
+	if v == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func buildRabbitURL() string {
+	if raw := getenv("RABBITMQ_URL", ""); raw != "" {
+		return raw
+	}
+
+	scheme := getenv("RABBITMQ_SCHEME", "amqp")
+	if envBool("RABBITMQ_TLS_ENABLED", false) {
+		scheme = "amqps"
+	}
+	host := getenv("RABBITMQ_HOST", "rabbitmq")
+	port := getenv("RABBITMQ_PORT", "5672")
+	username := url.QueryEscape(getenv("RABBITMQ_USERNAME", "guest"))
+	password := url.QueryEscape(getenv("RABBITMQ_PASSWORD", "guest"))
+	vhost := getenv("RABBITMQ_VHOST", "/")
+	if vhost == "" {
+		vhost = "/"
+	}
+	if vhost[0] != '/' {
+		vhost = "/" + vhost
+	}
+
+	return fmt.Sprintf("%s://%s:%s@%s:%s%s", scheme, username, password, host, port, vhost)
+}
+
 func main() {
-	rabbitURL := getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+	rabbitURL := buildRabbitURL()
 	exchange := getenv("EXCHANGE_NAME", "poc.events")
 	queue := getenv("QUEUE_NAME", "poc.queue")
 	dlx := getenv("DLX_NAME", "poc.dlx")

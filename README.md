@@ -49,8 +49,19 @@ Run only integration test for one consumer profile:
 - `services/consumer-py`: Python consumer service.
 - `services/consumer-dotnet`: .NET consumer service.
 - `infra/docker-compose.yml`: local orchestration.
+- `infra/examples`: deployment examples for secrets injection.
 - `contracts/message.schema.json`: event schema contract.
 - `docs/`: architecture, runbook, cloud path, and expansion template.
+
+## Security and Secrets
+
+- Canonical broker secret keys are documented in `docs/security-secrets.md`.
+- Services support both:
+  - direct secret URL: `RABBITMQ_URL`
+  - component-based secrets: `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST`, `RABBITMQ_TLS_ENABLED`
+- Example secret injection manifests:
+  - `infra/examples/aws-ecs-secrets.example.json`
+  - `infra/examples/k8s-external-secrets.example.yaml`
 
 ## Core Endpoints
 

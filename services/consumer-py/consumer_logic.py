@@ -1,6 +1,8 @@
 import json
+import os
 from collections import deque
 from typing import Deque, Set
+from urllib.parse import quote
 
 
 REQUIRED_FIELDS = {"schemaVersion", "message", "eventType", "timestamp", "traceId"}
@@ -39,3 +41,29 @@ def validate_payload(payload):
     if not REQUIRED_FIELDS.issubset(payload.keys()):
         return False
     return bool(payload.get("message"))
+
+
+def env_bool(key: str, fallback: bool) -> bool:
+    value = os.getenv(key)
+    if value is None:
+        return fallback
+    return value.lower() in ("1", "true", "yes", "on")
+
+
+def build_rabbitmq_url() -> str:
+    raw = os.getenv("RABBITMQ_URL")
+    if raw:
+        return raw
+
+    scheme = os.getenv("RABBITMQ_SCHEME", "amqp")
+    if env_bool("RABBITMQ_TLS_ENABLED", False):
+        scheme = "amqps"
+    host = os.getenv("RABBITMQ_HOST", "rabbitmq")
+    port = os.getenv("RABBITMQ_PORT", "5672")
+    username = quote(os.getenv("RABBITMQ_USERNAME", "guest"), safe="")
+    password = quote(os.getenv("RABBITMQ_PASSWORD", "guest"), safe="")
+    vhost = os.getenv("RABBITMQ_VHOST", "/")
+    if not vhost.startswith("/"):
+        vhost = "/" + vhost
+
+    return f"{scheme}://{username}:{password}@{host}:{port}{vhost}"

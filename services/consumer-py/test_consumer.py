@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from consumer_logic import Deduper, decode_payload, validate_payload
+from consumer_logic import Deduper, decode_payload, validate_payload, build_rabbitmq_url
 
 
 class TestDeduper(unittest.TestCase):
@@ -34,6 +35,32 @@ class TestPayloadValidation(unittest.TestCase):
     def test_validate_payload_rejects_missing_fields(self):
         payload = {"message": "hello"}
         self.assertFalse(validate_payload(payload))
+
+
+class TestRabbitUrlBuild(unittest.TestCase):
+    @patch.dict(
+        "os.environ",
+        {
+            "RABBITMQ_URL": "",
+            "RABBITMQ_SCHEME": "amqp",
+            "RABBITMQ_HOST": "rabbit.internal",
+            "RABBITMQ_PORT": "5672",
+            "RABBITMQ_USERNAME": "user",
+            "RABBITMQ_PASSWORD": "pass",
+            "RABBITMQ_VHOST": "myvhost",
+            "RABBITMQ_TLS_ENABLED": "false",
+        },
+        clear=False,
+    )
+    def test_build_rabbitmq_url_from_components(self):
+        self.assertEqual(
+            build_rabbitmq_url(),
+            "amqp://user:pass@rabbit.internal:5672/myvhost",
+        )
+
+    @patch.dict("os.environ", {"RABBITMQ_URL": "amqps://from-secret-manager"}, clear=False)
+    def test_build_rabbitmq_url_prefers_direct_secret_url(self):
+        self.assertEqual(build_rabbitmq_url(), "amqps://from-secret-manager")
 
 
 if __name__ == "__main__":

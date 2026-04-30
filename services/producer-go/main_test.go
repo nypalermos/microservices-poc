@@ -126,3 +126,28 @@ func TestPublishHandler_Success(t *testing.T) {
 		t.Fatalf("unexpected timestamp %s", bus.lastEvent.Timestamp)
 	}
 }
+
+func TestBuildRabbitURL_FromComponents(t *testing.T) {
+	t.Setenv("RABBITMQ_URL", "")
+	t.Setenv("RABBITMQ_SCHEME", "amqp")
+	t.Setenv("RABBITMQ_HOST", "rabbit.internal")
+	t.Setenv("RABBITMQ_PORT", "5672")
+	t.Setenv("RABBITMQ_USERNAME", "user")
+	t.Setenv("RABBITMQ_PASSWORD", "pass")
+	t.Setenv("RABBITMQ_VHOST", "myvhost")
+	t.Setenv("RABBITMQ_TLS_ENABLED", "false")
+
+	got := buildRabbitURL()
+	want := "amqp://user:pass@rabbit.internal:5672/myvhost"
+	if got != want {
+		t.Fatalf("unexpected url: got %s want %s", got, want)
+	}
+}
+
+func TestBuildRabbitURL_PrefersDirectURL(t *testing.T) {
+	expected := "amqps://from-secret-manager"
+	t.Setenv("RABBITMQ_URL", expected)
+	if got := buildRabbitURL(); got != expected {
+		t.Fatalf("expected %s, got %s", expected, got)
+	}
+}
