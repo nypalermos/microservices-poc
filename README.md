@@ -43,6 +43,15 @@ Run only integration test for one consumer profile:
 ./scripts/test-integration.ps1 -Profile dotnet-consumer
 ```
 
+## CI
+
+- GitHub Actions workflow: `.github/workflows/ci.yml`
+- Runs on push/PR:
+  - unit tests for Go, Python, and .NET
+  - integration test matrix for `python-consumer` and `dotnet-consumer`
+  - coverage artifact generation and upload
+  - secret scanning with gitleaks
+
 ## Repository Layout
 
 - `services/producer-go`: Go producer service.

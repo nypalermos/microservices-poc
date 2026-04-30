@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Run Go unit tests
+        working-directory: services/producer-go
+        run: go test ./...
+
+      - name: Run Python unit tests
+        working-directory: services/consumer-py
+        run: python -m unittest -v test_consumer.py
+
+      - name: Run .NET unit tests
+        working-directory: services/consumer-dotnet
+        run: dotnet test ./Tests/consumer-dotnet.Tests.csproj --verbosity minimal
+
+  integration-tests:
+    name: Integration (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [python-consumer, dotnet-consumer]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start stack
+        run: docker compose -f infra/docker-compose.yml --profile ${{ matrix.profile }} up --build -d
+
+      - name: Wait for producer health
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:8080/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Producer did not become healthy in time"
+          docker compose -f infra/docker-compose.yml logs
+          exit 1
+
+      - name: Publish message
+        run: |
+          msg="ci-test-${{ matrix.profile }}-$(date +%s)"
+          echo "CI_TEST_MESSAGE=$msg" >> "$GITHUB_ENV"
+          curl -sS -X POST http://localhost:8080/publish \
+            -H "Content-Type: application/json" \
+            -d "{\"message\":\"$msg\",\"eventType\":\"integration.test\"}" >/dev/null
+
+      - name: Assert consumer received message
+        run: |
+          service="consumer-py"
+          if [ "${{ matrix.profile }}" = "dotnet-consumer" ]; then
+            service="consumer-dotnet"
+          fi
+
+          for i in {1..30}; do
+            if docker compose -f infra/docker-compose.yml logs "$service" --tail 200 | grep -F "$CI_TEST_MESSAGE"; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Expected message not found in $service logs"
+          docker compose -f infra/docker-compose.yml logs "$service"
+          exit 1
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f infra/docker-compose.yml --profile python-consumer --profile dotnet-consumer down --remove-orphans
+
+  coverage:
+    name: Coverage Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Generate coverage artifacts
+        shell: pwsh
+        run: ./scripts/test-coverage.ps1
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: coverage/
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
