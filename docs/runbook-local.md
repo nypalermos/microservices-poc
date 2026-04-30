@@ -11,6 +11,14 @@
 docker compose -f infra/docker-compose.yml --profile python-consumer up --build -d
 ```
 
+Optional explicit local env file:
+
+```powershell
+Copy-Item infra/environments/local.env.example infra/environments/local.env
+$env:ENV_FILE = "../infra/environments/local.env"
+docker compose -f infra/docker-compose.yml --profile python-consumer up --build -d
+```
+
 For .NET consumer:
 
 ```powershell

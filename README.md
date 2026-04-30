@@ -20,6 +20,13 @@ docker compose -f infra/docker-compose.yml --profile dotnet-consumer up --build 
 docker compose -f infra/docker-compose.yml logs consumer-dotnet --tail 50
 ```
 
+Use an explicit environment file (recommended):
+
+```powershell
+$env:ENV_FILE = "../infra/environments/local.env"
+docker compose -f infra/docker-compose.yml --profile python-consumer up --build -d
+```
+
 ## Testing
 
 Run full local test flow (build/syntax + integration for both consumers):
@@ -58,6 +65,7 @@ Run only integration test for one consumer profile:
 - `services/consumer-py`: Python consumer service.
 - `services/consumer-dotnet`: .NET consumer service.
 - `infra/docker-compose.yml`: local orchestration.
+- `infra/environments`: local/dev/staging/prod environment templates.
 - `infra/examples`: deployment examples for secrets injection.
 - `contracts/message.schema.json`: event schema contract.
 - `docs/`: architecture, runbook, cloud path, and expansion template.
@@ -65,6 +73,7 @@ Run only integration test for one consumer profile:
 ## Security and Secrets
 
 - Canonical broker secret keys are documented in `docs/security-secrets.md`.
+- Environment model and promotion strategy are documented in `docs/environment-strategy.md`.
 - Services support both:
   - direct secret URL: `RABBITMQ_URL`
   - component-based secrets: `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`, `RABBITMQ_VHOST`, `RABBITMQ_TLS_ENABLED`

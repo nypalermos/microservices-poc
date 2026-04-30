@@ -17,7 +17,7 @@ services:
       context: ../services/producer-go
     container_name: poc-producer-go
     env_file:
-      - ../.env.example
+      - ${ENV_FILE:-../infra/environments/local.env.example}
     ports:
       - "8080:8080"
     depends_on:
@@ -30,7 +30,7 @@ services:
       context: ../services/consumer-py
     container_name: poc-consumer-py
     env_file:
-      - ../.env.example
+      - ${ENV_FILE:-../infra/environments/local.env.example}
     ports:
       - "9100:9100"
     depends_on:
@@ -44,7 +44,7 @@ services:
       context: ../services/consumer-dotnet
     container_name: poc-consumer-dotnet
     env_file:
-      - ../.env.example
+      - ${ENV_FILE:-../infra/environments/local.env.example}
     depends_on:
       rabbitmq:
         condition: service_healthy
