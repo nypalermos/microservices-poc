@@ -11,6 +11,8 @@ dist/
 build/
 coverage/
 *.log
+*.exe
+.coverage
 bin/
 obj/
 tmp/
