@@ -1,0 +1,52 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: poc-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    restart: unless-stopped
+
+  producer-go:
+    build:
+      context: ../services/producer-go
+    container_name: poc-producer-go
+    env_file:
+      - ../.env.example
+    ports:
+      - "8080:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  consumer-py:
+    build:
+      context: ../services/consumer-py
+    container_name: poc-consumer-py
+    env_file:
+      - ../.env.example
+    ports:
+      - "9100:9100"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    profiles: ["python-consumer"]
+    restart: unless-stopped
+
+  consumer-dotnet:
+    build:
+      context: ../services/consumer-dotnet
+    container_name: poc-consumer-dotnet
+    env_file:
+      - ../.env.example
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    profiles: ["dotnet-consumer"]
+    restart: unless-stopped
