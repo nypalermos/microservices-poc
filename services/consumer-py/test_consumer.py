@@ -1,7 +1,14 @@
 import unittest
 from unittest.mock import patch
 
-from consumer_logic import Deduper, decode_payload, validate_payload, build_rabbitmq_url
+from consumer_logic import (
+    Deduper,
+    build_consumed_event,
+    build_rabbitmq_url,
+    decode_payload,
+    serialize_consumed_event,
+    validate_payload,
+)
 
 
 class TestDeduper(unittest.TestCase):
@@ -61,6 +68,27 @@ class TestRabbitUrlBuild(unittest.TestCase):
     @patch.dict("os.environ", {"RABBITMQ_URL": "amqps://from-secret-manager"}, clear=False)
     def test_build_rabbitmq_url_prefers_direct_secret_url(self):
         self.assertEqual(build_rabbitmq_url(), "amqps://from-secret-manager")
+
+
+class TestConsumedEvent(unittest.TestCase):
+    def test_build_consumed_event_includes_optional_source_fields(self):
+        rabbit = {
+            "schemaVersion": "1.0",
+            "message": "hello",
+            "eventType": "demo.message",
+            "timestamp": "2026-04-30T00:00:00Z",
+            "traceId": "abc12345",
+        }
+        event = build_consumed_event(rabbit, "python")
+        self.assertEqual(event["schemaVersion"], "1.0")
+        self.assertEqual(event["traceId"], "abc12345")
+        self.assertEqual(event["eventType"], "demo.message")
+        self.assertEqual(event["message"], "hello")
+        self.assertEqual(event["consumerRuntime"], "python")
+        self.assertEqual(event["sourceSchemaVersion"], "1.0")
+        self.assertEqual(event["sourceTimestamp"], "2026-04-30T00:00:00Z")
+        raw = serialize_consumed_event(event)
+        self.assertIn(b"consumedAt", raw)
 
 
 if __name__ == "__main__":

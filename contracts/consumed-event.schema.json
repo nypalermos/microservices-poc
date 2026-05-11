@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/contracts/consumed-event.schema.json",
+  "title": "ConsumedEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "traceId",
+    "eventType",
+    "message",
+    "consumedAt",
+    "consumerRuntime"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "traceId": {
+      "type": "string",
+      "minLength": 8
+    },
+    "eventType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "consumedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "consumerRuntime": {
+      "type": "string",
+      "enum": ["python", "dotnet"]
+    },
+    "sourceSchemaVersion": {
+      "type": "string",
+      "description": "schemaVersion from the RabbitMQ message envelope, if present"
+    },
+    "sourceTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "timestamp from the RabbitMQ message envelope, if present"
+    }
+  }
+}

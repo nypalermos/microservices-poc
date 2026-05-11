@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Xunit;
 
 public class ConsumerLogicTests
@@ -34,6 +35,21 @@ public class ConsumerLogicTests
     {
         var payload = new EventEnvelope("1.0", "hello", "demo.message", "2026-04-30T00:00:00Z", "trace-id");
         Assert.True(ConsumerLogic.IsPayloadValid(payload));
+    }
+
+    [Fact]
+    public void BuildConsumedEventJson_IncludesTraceAndRuntime()
+    {
+        var src = new EventEnvelope("1.0", "hello", "demo.message", "2026-04-30T00:00:00Z", "trace-xyz");
+        var json = ConsumerLogic.BuildConsumedEventJson(src, "dotnet");
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        Assert.Equal("1.0", root.GetProperty("schemaVersion").GetString());
+        Assert.Equal("trace-xyz", root.GetProperty("traceId").GetString());
+        Assert.Equal("dotnet", root.GetProperty("consumerRuntime").GetString());
+        Assert.Equal("1.0", root.GetProperty("sourceSchemaVersion").GetString());
+        Assert.Equal("2026-04-30T00:00:00Z", root.GetProperty("sourceTimestamp").GetString());
+        Assert.True(root.TryGetProperty("consumedAt", out _));
     }
 
     [Fact]

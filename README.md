@@ -77,7 +77,8 @@ Run only integration test for one consumer profile:
 - `infra/examples`: deployment examples for secrets injection.
 - `infra/terraform`: AWS IaC modules and environment stacks.
 - `infra/terraform-azure`: Azure Container Apps modules and environment stacks.
-- `contracts/message.schema.json`: event schema contract.
+- `contracts/message.schema.json`: inbound RabbitMQ message schema.
+- `contracts/consumed-event.schema.json`: outbound Kafka consumed-event schema.
 - `docs/`: architecture, runbook, cloud path, and expansion template.
 
 ## Security and Secrets

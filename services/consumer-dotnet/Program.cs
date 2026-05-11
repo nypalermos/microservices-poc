@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Diagnostics.CodeAnalysis;
+using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -80,6 +81,20 @@ class Program
         var dlq = Env.Get("DLQ_NAME", Env.Get("Messaging:DlqName", "poc.queue.dlq"));
         var retryDelayMs = Env.GetInt("RETRY_DELAY_MS", Env.GetInt("Messaging:RetryDelayMs", 5000));
         var maxRetries = Env.GetInt("MAX_RETRIES", Env.GetInt("Messaging:MaxRetries", 3));
+        var kafkaEnabled = Env.GetBool("KAFKA_ENABLED", Env.GetBool("Messaging:KafkaEnabled", false));
+        var kafkaTopic = Env.Get("KAFKA_TOPIC", Env.Get("Messaging:KafkaTopic", "poc.consumed"));
+
+        IProducer<string, string>? kafkaProducer = null;
+        if (kafkaEnabled)
+        {
+            var producerConfig = new ProducerConfig
+            {
+                BootstrapServers = Env.Get("KAFKA_BOOTSTRAP_SERVERS", Env.Get("Messaging:KafkaBootstrapServers", "localhost:9092")),
+                Acks = Acks.All,
+                EnableIdempotence = true,
+            };
+            kafkaProducer = new ProducerBuilder<string, string>(producerConfig).Build();
+        }
 
         var factory = new ConnectionFactory
         {
@@ -128,6 +143,42 @@ class Program
                 return;
             }
 
+            if (kafkaEnabled)
+            {
+                if (kafkaProducer is null)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(new { level = "error", msg = "KAFKA_ENABLED but Kafka producer is null" }));
+                    return;
+                }
+
+                try
+                {
+                    var json = ConsumerLogic.BuildConsumedEventJson(payload, "dotnet");
+                    var message = new Message<string, string>
+                    {
+                        Key = payload.traceId,
+                        Value = json,
+                        Headers = new Confluent.Kafka.Headers
+                        {
+                            { "eventType", Encoding.UTF8.GetBytes(payload.eventType) },
+                            { "consumerRuntime", Encoding.UTF8.GetBytes("dotnet") },
+                        }
+                    };
+                    await kafkaProducer.ProduceAsync(kafkaTopic, message).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(new
+                    {
+                        level = "error",
+                        msg = "kafka publish failed; message not acked for redelivery",
+                        traceId = payload.traceId,
+                        error = ex.Message
+                    }));
+                    return;
+                }
+            }
+
             try
             {
                 RememberTraceId(payload.traceId);
@@ -162,7 +213,15 @@ class Program
         Console.WriteLine(JsonSerializer.Serialize(new { level = "info", msg = "dotnet consumer started", queue }));
         var wait = new ManualResetEvent(false);
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; wait.Set(); };
-        wait.WaitOne();
+        try
+        {
+            wait.WaitOne();
+        }
+        finally
+        {
+            kafkaProducer?.Flush(TimeSpan.FromSeconds(30));
+            kafkaProducer?.Dispose();
+        }
     }
 
     private static void DeclareTopology(IModel channel, string exchange, string dlx, string queue, string retryQueue, string dlq, string routingKey, int retryDelayMs)

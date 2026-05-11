@@ -94,6 +94,25 @@ jobs:
           docker compose -f infra/docker-compose.yml logs "$service"
           exit 1
 
+      - name: Assert Kafka consumed event
+        run: |
+          for i in $(seq 1 45); do
+            if docker compose -f infra/docker-compose.yml exec -T kafka kafka-console-consumer \
+              --bootstrap-server localhost:9092 \
+              --topic poc.consumed \
+              --from-beginning \
+              --max-messages 400 \
+              --timeout-ms 25000 2>/dev/null | grep -F "$CI_TEST_MESSAGE"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Kafka topic poc.consumed did not contain CI test message"
+          docker compose -f infra/docker-compose.yml logs kafka --tail 100
+          docker compose -f infra/docker-compose.yml logs consumer-py --tail 80
+          docker compose -f infra/docker-compose.yml logs consumer-dotnet --tail 80
+          exit 1
+
       - name: Tear down stack
         if: always()
         run: docker compose -f infra/docker-compose.yml --profile python-consumer --profile dotnet-consumer down --remove-orphans

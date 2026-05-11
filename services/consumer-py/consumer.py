@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import pika
 from prometheus_client import Counter, Gauge, start_http_server
 from consumer_logic import Deduper, decode_payload, validate_payload, build_rabbitmq_url
+from kafka_emit import KafkaConsumedEmitter
 
 
 CONSUMED_TOTAL = Counter("consumer_processed_total", "Total successfully processed messages")
@@ -30,6 +31,7 @@ class Consumer:
         self.max_retries = int(os.getenv("MAX_RETRIES", "3"))
         self.metrics_port = int(os.getenv("CONSUMER_METRICS_PORT", "9100"))
         self.deduper = Deduper()
+        self.kafka_emitter = KafkaConsumedEmitter()
         self.connection = None
         self.channel = None
         self.running = True
@@ -99,6 +101,22 @@ class Consumer:
             return
 
         try:
+            if self.kafka_emitter.enabled:
+                self.kafka_emitter.publish_consumed(payload, "python")
+        except Exception as exc:
+            print(
+                json.dumps(
+                    {
+                        "level": "error",
+                        "msg": "kafka publish failed; message not acked for redelivery",
+                        "traceId": trace_id,
+                        "error": str(exc),
+                    }
+                )
+            )
+            return
+
+        try:
             # Simulated processing with structured logging for observability.
             print(
                 json.dumps(
@@ -151,6 +169,7 @@ class Consumer:
     def shutdown(self, *_args) -> None:
         self.running = False
         READY.set(0)
+        self.kafka_emitter.close()
         if self.connection and self.connection.is_open:
             self.connection.close()
         print(json.dumps({"level": "info", "msg": "consumer shutdown"}))

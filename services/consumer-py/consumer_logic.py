@@ -1,7 +1,8 @@
 import json
 import os
 from collections import deque
-from typing import Deque, Set
+from datetime import datetime, timezone
+from typing import Any, Deque, Dict, Set
 from urllib.parse import quote
 
 
@@ -41,6 +42,28 @@ def validate_payload(payload):
     if not REQUIRED_FIELDS.issubset(payload.keys()):
         return False
     return bool(payload.get("message"))
+
+
+def build_consumed_event(rabbit_payload: dict[str, Any], consumer_runtime: str) -> dict[str, Any]:
+    """Build the outbound Kafka envelope after successful RabbitMQ validation (not emitted for duplicates)."""
+    consumed_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    event: dict[str, Any] = {
+        "schemaVersion": "1.0",
+        "traceId": str(rabbit_payload.get("traceId")),
+        "eventType": str(rabbit_payload.get("eventType")),
+        "message": str(rabbit_payload.get("message")),
+        "consumedAt": consumed_at,
+        "consumerRuntime": consumer_runtime,
+    }
+    if rabbit_payload.get("schemaVersion") is not None:
+        event["sourceSchemaVersion"] = str(rabbit_payload["schemaVersion"])
+    if rabbit_payload.get("timestamp") is not None:
+        event["sourceTimestamp"] = str(rabbit_payload["timestamp"])
+    return event
+
+
+def serialize_consumed_event(event: dict[str, Any]) -> bytes:
+    return json.dumps(event, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def env_bool(key: str, fallback: bool) -> bool:

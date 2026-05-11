@@ -15,6 +15,13 @@ Use four lifecycle environments with promotion gates:
 - Environment differences are configuration-only (no code forks).
 - Secrets are injected by the platform secret backend and never committed.
 
+## RabbitMQ ingest and Kafka egress
+
+- **RabbitMQ** remains the primary ingress path for the producer and consumers (same exchange, queue, retry, and DLQ behavior).
+- **Kafka** is optional per environment: when `KAFKA_ENABLED=true`, both consumers publish a JSON **consumed event** to `KAFKA_TOPIC` after validation and **before** deduplication state is committed, so a failed Kafka publish leaves the RabbitMQ message unacknowledged for safe redelivery.
+- Local Compose includes a single-node Kafka broker for development; `dev` / `staging` / `prod` templates default `KAFKA_ENABLED=false` until you point `KAFKA_BOOTSTRAP_SERVERS` at a real cluster.
+- Event shape is defined in [`contracts/consumed-event.schema.json`](../contracts/consumed-event.schema.json) (separate from the inbound [`contracts/message.schema.json`](../contracts/message.schema.json)).
+
 ## Env File Templates
 
 Environment templates are in `infra/environments/`:

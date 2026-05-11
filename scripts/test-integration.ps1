@@ -43,6 +43,27 @@ function Assert-ConsumerReceivedMessage {
   throw "Consumer logs did not contain expected message: $ExpectedText"
 }
 
+function Assert-KafkaTopicContainsText {
+  param(
+    [string]$ExpectedText,
+    [int]$TimeoutSeconds = 120
+  )
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    $out = docker compose -f $composeFile exec -T kafka kafka-console-consumer `
+      --bootstrap-server localhost:9092 `
+      --topic poc.consumed `
+      --from-beginning `
+      --max-messages 200 `
+      --timeout-ms 20000 2>$null
+    if ($out -match [Regex]::Escape($ExpectedText)) {
+      return
+    }
+    Start-Sleep -Seconds 3
+  }
+  throw "Kafka topic poc.consumed did not contain expected text: $ExpectedText"
+}
+
 try {
   Write-Host "Cleaning any existing stack containers..."
   docker compose -f $composeFile --profile python-consumer --profile dotnet-consumer down --remove-orphans
@@ -71,6 +92,9 @@ try {
 
   Write-Host "Asserting consumer processed the message..."
   Assert-ConsumerReceivedMessage -ServiceName $consumerService -ExpectedText $testMessage
+
+  Write-Host "Asserting Kafka consumed event..."
+  Assert-KafkaTopicContainsText -ExpectedText $testMessage
 
   Write-Host "Integration test passed for profile: $Profile"
 } finally {
