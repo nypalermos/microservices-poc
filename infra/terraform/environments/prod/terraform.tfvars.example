@@ -1,0 +1,11 @@
+aws_region                   = "us-east-1"
+ecs_cluster_arn              = "arn:aws:ecs:us-east-1:123456789012:cluster/poc-prod"
+private_subnet_ids           = ["subnet-aaaa1111", "subnet-bbbb2222"]
+security_group_ids           = ["sg-aaaa1111"]
+execution_role_arn           = "arn:aws:iam::123456789012:role/poc-ecs-execution-role"
+task_role_arn                = "arn:aws:iam::123456789012:role/poc-ecs-task-role"
+rabbitmq_host                = "b-1.prod-rabbitmq.internal"
+rabbitmq_username_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:poc/prod/rabbitmq/username"
+rabbitmq_password_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:poc/prod/rabbitmq/password"
+producer_image               = "123456789012.dkr.ecr.us-east-1.amazonaws.com/poc-producer:prod"
+consumer_image               = "123456789012.dkr.ecr.us-east-1.amazonaws.com/poc-consumer-dotnet:prod"

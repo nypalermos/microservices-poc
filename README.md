@@ -59,6 +59,14 @@ Run only integration test for one consumer profile:
   - coverage artifact generation and upload
   - secret scanning with gitleaks
 
+## CD
+
+- GitHub Actions deployment workflow: `.github/workflows/cd.yml`
+- Azure Container Apps image rollout (OIDC): `.github/workflows/cd-azure.yml`
+- Uses staged environments (`dev`, `staging`, `prod`) with GitHub Environment approvals.
+- Deployment and promotion details: `docs/deployment-cd.md`
+- Azure Container Apps baseline (Terraform + Key Vault): `docs/azure-container-apps.md`
+
 ## Repository Layout
 
 - `services/producer-go`: Go producer service.
@@ -67,6 +75,8 @@ Run only integration test for one consumer profile:
 - `infra/docker-compose.yml`: local orchestration.
 - `infra/environments`: local/dev/staging/prod environment templates.
 - `infra/examples`: deployment examples for secrets injection.
+- `infra/terraform`: AWS IaC modules and environment stacks.
+- `infra/terraform-azure`: Azure Container Apps modules and environment stacks.
 - `contracts/message.schema.json`: event schema contract.
 - `docs/`: architecture, runbook, cloud path, and expansion template.
 
@@ -80,6 +90,20 @@ Run only integration test for one consumer profile:
 - Example secret injection manifests:
   - `infra/examples/aws-ecs-secrets.example.json`
   - `infra/examples/k8s-external-secrets.example.yaml`
+
+## Terraform/OpenTofu
+
+- **AWS** environment stacks:
+  - `infra/terraform/environments/dev`
+  - `infra/terraform/environments/staging`
+  - `infra/terraform/environments/prod`
+- **Azure** environment stacks:
+  - `infra/terraform-azure/environments/dev`
+  - `infra/terraform-azure/environments/staging`
+  - `infra/terraform-azure/environments/prod`
+- Each stack includes `terraform.tfvars.example` for required inputs.
+- AWS deployment baseline: `docs/deployment-cd.md`
+- Azure Container Apps baseline: `docs/azure-container-apps.md`
 
 ## Core Endpoints
 

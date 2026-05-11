@@ -17,3 +17,12 @@ services/producer-go/coverage
 bin/
 obj/
 tmp/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.*.log
+**/terraform.tfvars
+**/tfplan
+*.tfplan

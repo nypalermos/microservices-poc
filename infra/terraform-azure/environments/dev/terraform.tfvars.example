@@ -1,0 +1,22 @@
+# Copy to terraform.tfvars (not committed) and fill values.
+# Key Vault names must be globally unique across Azure.
+
+resource_group_name = "rg-poc-dev"
+location            = "eastus"
+name_prefix         = "poc-dev"
+
+# Must be globally unique; only letters, digits, hyphens; 3-24 chars.
+key_vault_name = "poc-dev-kv-youruniq"
+
+producer_image = "ghcr.io/your-org/poc-producer-go:latest"
+consumer_image = "ghcr.io/your-org/poc-consumer-py:latest"
+
+rabbitmq_host     = "your-rabbitmq.example.com"
+rabbitmq_port     = 5671
+rabbitmq_username = "app-user"
+rabbitmq_password = "change-me"
+
+# Optional tuning
+# producer_min_replicas = 1
+# consumer_min_replicas = 1
+# log_retention_days    = 30

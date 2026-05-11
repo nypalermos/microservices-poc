@@ -1,0 +1,20 @@
+# Copy to terraform.tfvars (not committed) and fill values.
+
+resource_group_name = "rg-poc-prod"
+location            = "eastus"
+name_prefix         = "poc-prod"
+
+key_vault_name = "poc-prod-kv-youruniq"
+
+producer_image = "ghcr.io/your-org/poc-producer-go:v1.0.0"
+consumer_image = "ghcr.io/your-org/poc-consumer-py:v1.0.0"
+
+rabbitmq_host     = "your-rabbitmq-prod.example.com"
+rabbitmq_port     = 5671
+rabbitmq_username = "app-user"
+rabbitmq_password = "change-me"
+
+# Harden Key Vault in production
+purge_protection_enabled   = true
+soft_delete_retention_days = 90
+# log_retention_days         = 90

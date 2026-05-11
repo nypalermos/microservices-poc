@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (not committed) and fill values.
+
+resource_group_name = "rg-poc-staging"
+location            = "eastus"
+name_prefix         = "poc-staging"
+
+key_vault_name = "poc-staging-kv-youruniq"
+
+producer_image = "ghcr.io/your-org/poc-producer-go:staging"
+consumer_image = "ghcr.io/your-org/poc-consumer-py:staging"
+
+rabbitmq_host     = "your-rabbitmq-staging.example.com"
+rabbitmq_port     = 5671
+rabbitmq_username = "app-user"
+rabbitmq_password = "change-me"
+
+# purge_protection_enabled = false

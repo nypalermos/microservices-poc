@@ -1,0 +1,88 @@
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Environment to deploy"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy (${{ inputs.target_env }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required secret references
+        run: |
+          if [ -z "${{ secrets.AWS_REGION }}" ]; then
+            echo "Missing required environment secret: AWS_REGION"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ECR_REGISTRY }}" ]; then
+            echo "Missing required environment secret: ECR_REGISTRY"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ECS_CLUSTER }}" ]; then
+            echo "Missing required environment secret: ECS_CLUSTER"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ECS_SERVICE_PRODUCER }}" ]; then
+            echo "Missing required environment secret: ECS_SERVICE_PRODUCER"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ECS_SERVICE_CONSUMER }}" ]; then
+            echo "Missing required environment secret: ECS_SERVICE_CONSUMER"
+            exit 1
+          fi
+
+      - name: Setup AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Resolve image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - name: Deploy producer service
+        run: |
+          aws ecs update-service \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --service "${{ secrets.ECS_SERVICE_PRODUCER }}" \
+            --force-new-deployment
+
+      - name: Deploy consumer service
+        run: |
+          aws ecs update-service \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --service "${{ secrets.ECS_SERVICE_CONSUMER }}" \
+            --force-new-deployment
+
+      - name: Wait for services stable
+        run: |
+          aws ecs wait services-stable \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --services "${{ secrets.ECS_SERVICE_PRODUCER }}" "${{ secrets.ECS_SERVICE_CONSUMER }}"
+
+      - name: Smoke test publish endpoint
+        run: |
+          if [ -z "${{ secrets.PUBLISH_URL }}" ]; then
+            echo "Missing required environment secret: PUBLISH_URL"
+            exit 1
+          fi
+          curl -sS -X POST "${{ secrets.PUBLISH_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{"message":"cd-smoke-test","eventType":"release.smoke"}'

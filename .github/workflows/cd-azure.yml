@@ -1,0 +1,150 @@
+name: CD (Azure)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Environment to deploy (must match GitHub Environment name)"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      producer_image:
+        description: "Full producer image URI including tag (empty = use environment secret PRODUCER_IMAGE)"
+        required: false
+        type: string
+        default: ""
+      consumer_image:
+        description: "Full consumer image URI including tag (empty = use environment secret CONSUMER_IMAGE)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy Azure (${{ inputs.target_env }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_env }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required secrets
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          CONTAINER_APP_PRODUCER_NAME: ${{ secrets.CONTAINER_APP_PRODUCER_NAME }}
+          CONTAINER_APP_CONSUMER_NAME: ${{ secrets.CONTAINER_APP_CONSUMER_NAME }}
+          PRODUCER_IMAGE_SECRET: ${{ secrets.PRODUCER_IMAGE }}
+          CONSUMER_IMAGE_SECRET: ${{ secrets.CONSUMER_IMAGE }}
+          PRODUCER_IMAGE_INPUT: ${{ inputs.producer_image }}
+          CONSUMER_IMAGE_INPUT: ${{ inputs.consumer_image }}
+        run: |
+          set -eo pipefail
+          missing=""
+          for n in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_RESOURCE_GROUP \
+            CONTAINER_APP_PRODUCER_NAME CONTAINER_APP_CONSUMER_NAME; do
+            if [ -z "$(printenv "$n" || true)" ]; then missing="$missing $n"; fi
+          done
+          PROD_IMAGE="${PRODUCER_IMAGE_INPUT:-}"
+          if [ -z "$PROD_IMAGE" ]; then PROD_IMAGE="${PRODUCER_IMAGE_SECRET:-}"; fi
+          CONS_IMAGE="${CONSUMER_IMAGE_INPUT:-}"
+          if [ -z "$CONS_IMAGE" ]; then CONS_IMAGE="${CONSUMER_IMAGE_SECRET:-}"; fi
+          if [ -z "$PROD_IMAGE" ]; then missing="$missing PRODUCER_IMAGE"; fi
+          if [ -z "$CONS_IMAGE" ]; then missing="$missing CONSUMER_IMAGE"; fi
+          if [ -n "${missing# }" ]; then
+            echo "Missing required configuration:${missing}"
+            exit 1
+          fi
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve image references
+        id: images
+        env:
+          PRODUCER_IMAGE_SECRET: ${{ secrets.PRODUCER_IMAGE }}
+          CONSUMER_IMAGE_SECRET: ${{ secrets.CONSUMER_IMAGE }}
+        run: |
+          set -eo pipefail
+          D=CAIMGREF
+          PROD_IMAGE='${{ inputs.producer_image }}'
+          CONS_IMAGE='${{ inputs.consumer_image }}'
+          if [ -z "$PROD_IMAGE" ]; then PROD_IMAGE="$PRODUCER_IMAGE_SECRET"; fi
+          if [ -z "$CONS_IMAGE" ]; then CONS_IMAGE="$CONSUMER_IMAGE_SECRET"; fi
+          {
+            echo "producer_image<<${D}"
+            echo "$PROD_IMAGE"
+            echo "${D}"
+            echo "consumer_image<<${D}"
+            echo "$CONS_IMAGE"
+            echo "${D}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update Container Apps (new revision)
+        env:
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          CONTAINER_APP_PRODUCER_NAME: ${{ secrets.CONTAINER_APP_PRODUCER_NAME }}
+          CONTAINER_APP_CONSUMER_NAME: ${{ secrets.CONTAINER_APP_CONSUMER_NAME }}
+          PRODUCER_IMAGE: ${{ steps.images.outputs.producer_image }}
+          CONSUMER_IMAGE: ${{ steps.images.outputs.consumer_image }}
+        run: |
+          set -eo pipefail
+          echo "Updating producer: ${CONTAINER_APP_PRODUCER_NAME}"
+          az containerapp update \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${CONTAINER_APP_PRODUCER_NAME}" \
+            --image "${PRODUCER_IMAGE}"
+          echo "Updating consumer: ${CONTAINER_APP_CONSUMER_NAME}"
+          az containerapp update \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "${CONTAINER_APP_CONSUMER_NAME}" \
+            --image "${CONSUMER_IMAGE}"
+
+      - name: Wait for producer provisioning
+        env:
+          AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+          CONTAINER_APP_PRODUCER_NAME: ${{ secrets.CONTAINER_APP_PRODUCER_NAME }}
+        run: |
+          set -eo pipefail
+          for i in $(seq 1 36); do
+            state=$(az containerapp show \
+              --resource-group "${AZURE_RESOURCE_GROUP}" \
+              --name "${CONTAINER_APP_PRODUCER_NAME}" \
+              --query "properties.provisioningState" -o tsv 2>/dev/null || echo "")
+            echo "Attempt ${i}: provisioningState=${state:-<empty>}"
+            if [ "$state" = "Succeeded" ]; then
+              exit 0
+            fi
+            if [ "$state" = "Failed" ]; then
+              echo "Producer provisioning failed"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Producer did not reach Succeeded within timeout"
+          exit 1
+
+      - name: Smoke test publish endpoint
+        run: |
+          set -eo pipefail
+          if [ -z "${{ secrets.PUBLISH_URL }}" ]; then
+            echo "Missing required environment secret: PUBLISH_URL"
+            exit 1
+          fi
+          curl -sS --fail-with-body --max-time 60 --retry 5 --retry-delay 8 --retry-all-errors \
+            -X POST "${{ secrets.PUBLISH_URL }}" \
+            -H "Content-Type: application/json" \
+            -d '{"message":"cd-azure-smoke-test","eventType":"release.smoke"}'
