@@ -14,7 +14,8 @@ def _kafka_config() -> dict[str, Any]:
     servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     return {
         "bootstrap.servers": servers,
-        "enable.idempotence": True,
+        # Avoid PID acquisition races on a just-started KRaft broker; acks=all still waits for ISR.
+        "enable.idempotence": False,
         "acks": "all",
     }
 

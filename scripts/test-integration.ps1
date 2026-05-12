@@ -50,12 +50,12 @@ function Assert-KafkaTopicContainsText {
   )
   $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
   while ((Get-Date) -lt $deadline) {
-    $out = docker compose -f $composeFile exec -T kafka kafka-console-consumer `
+    $out = docker compose -f $composeFile exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh `
       --bootstrap-server localhost:9092 `
       --topic poc.consumed `
       --from-beginning `
       --max-messages 200 `
-      --timeout-ms 20000 2>$null
+      --timeout-ms 20000 2>&1
     if ($out -match [Regex]::Escape($ExpectedText)) {
       return
     }

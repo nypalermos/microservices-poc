@@ -91,7 +91,8 @@ class Program
             {
                 BootstrapServers = Env.Get("KAFKA_BOOTSTRAP_SERVERS", Env.Get("Messaging:KafkaBootstrapServers", "localhost:9092")),
                 Acks = Acks.All,
-                EnableIdempotence = true,
+                // Idempotent producer waits for a broker PID; fresh KRaft nodes often return "Coordinator load in progress" briefly.
+                EnableIdempotence = false,
             };
             kafkaProducer = new ProducerBuilder<string, string>(producerConfig).Build();
         }

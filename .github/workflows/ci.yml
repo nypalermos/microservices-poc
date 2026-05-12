@@ -96,13 +96,15 @@ jobs:
 
       - name: Assert Kafka consumed event
         run: |
+          # apache/kafka image only provides /opt/kafka/bin/*.sh (not on default PATH)
+          KAFKA_SH="/opt/kafka/bin/kafka-console-consumer.sh"
           for i in $(seq 1 45); do
-            if docker compose -f infra/docker-compose.yml exec -T kafka kafka-console-consumer \
+            if docker compose -f infra/docker-compose.yml exec -T kafka "$KAFKA_SH" \
               --bootstrap-server localhost:9092 \
               --topic poc.consumed \
               --from-beginning \
               --max-messages 400 \
-              --timeout-ms 25000 2>/dev/null | grep -F "$CI_TEST_MESSAGE"; then
+              --timeout-ms 25000 2>&1 | grep -F "$CI_TEST_MESSAGE"; then
               exit 0
             fi
             sleep 2
